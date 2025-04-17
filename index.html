@@ -44,116 +44,12 @@
 
     const base = L.tileLayer('https://cyberjapandata.gsi.go.jp/xyz/std/{z}/{x}/{y}.png', { attribution: "地理院タイル" }).addTo(map);
 
-    const overlays = {
-      "標高段彩図": L.tileLayer('https://cyberjapandata.gsi.go.jp/xyz/relief/{z}/{x}/{y}.png', { opacity: 0.4, attribution: "地理院タイル（標高段彩図）" }),
-      "洪水・内水": L.tileLayer('https://disaportal.gsi.go.jp/data/raster/01_flood_l2_shinsuishin_data/{z}/{x}/{y}.png', { attribution: "洪水・内水" }),
-      "土砂災害": L.tileLayer('https://disaportal.gsi.go.jp/data/raster/05_dosekiryukeikaikuiki/{z}/{x}/{y}.png', { opacity: 0.6, attribution: "土砂災害" }),
-      "高潮": L.tileLayer('https://disaportal.gsi.go.jp/data/raster/03_hightide_l2_shinsuishin_data/{z}/{x}/{y}.png', { attribution: "高潮" }),
-      "津波": L.tileLayer('https://disaportal.gsi.go.jp/data/raster/04_tsunami_newlegend_data/{z}/{x}/{y}.png', { attribution: "津波" }),
-      "道路防災情報": L.tileLayer('https://disaportal.gsi.go.jp/data/raster/10_kansui/{z}/{x}/{y}.png', { attribution: "道路防災情報" })
-    };
+    const overlays = {};
 
     const allEvacLayer = L.layerGroup();
     overlays["避難所"] = allEvacLayer;
 
-    const steepLayer = L.layerGroup();
-    overlays["急傾斜地崩壊危険区域"] = steepLayer;
-
-    const slipLayer = L.layerGroup();
-    overlays["地すべり危険箇所"] = slipLayer;
-
-    const kikenLayer = L.layerGroup();
-    overlays["災害危険区域"] = kikenLayer;
-
-    const kinkyuLayer = L.layerGroup();
-    overlays["緊急輸送道路"] = kinkyuLayer;
-
     const layerControl = L.control.layers(null, overlays).addTo(map);
-
-    const evacFiles = [...Array(47).keys()].map(i => `P20-12_${(i+1).toString().padStart(2, '0')}.geojson`);
-    evacFiles.forEach(file => {
-      fetch(`evac/${file}`).then(res => res.ok ? res.json() : null).then(data => {
-        if (data) {
-          const layer = L.geoJSON(data, {
-            pointToLayer: (f, latlng) => L.circleMarker(latlng, {
-              radius: 8,
-              fillColor: "blue",
-              color: "#003366",
-              weight: 1,
-              opacity: 1,
-              fillOpacity: 0.6
-            })
-          });
-          allEvacLayer.addLayer(layer);
-        }
-      });
-    });
-
-    const steepFiles = [...Array(47).keys()].map(i => `A47-21_${(i+1).toString().padStart(2, '0')}.geojson`);
-    steepFiles.forEach(file => {
-      fetch(`steep/${file}`).then(res => res.ok ? res.json() : null).then(data => {
-        if (data) {
-          const layer = L.geoJSON(data, {
-            style: {
-              color: "#aa4400",
-              weight: 1,
-              fillOpacity: 0.3
-            }
-          });
-          steepLayer.addLayer(layer);
-        }
-      });
-    });
-
-    const slipFiles = [...Array(47).keys()].flatMap(i => [
-      `A46-a-21_${(i+1).toString().padStart(2, '0')}.geojson`,
-      `A46-b-21_${(i+1).toString().padStart(2, '0')}.geojson`
-    ]);
-    slipFiles.forEach(file => {
-      fetch(`slip/${file}`).then(res => res.ok ? res.json() : null).then(data => {
-        if (data) {
-          const layer = L.geoJSON(data, {
-            style: {
-              color: "#663399",
-              weight: 1,
-              fillOpacity: 0.3
-            }
-          });
-          slipLayer.addLayer(layer);
-        }
-      });
-    });
-
-    const kikenFiles = [...Array(47).keys()].map(i => `A48-21_${(i+1).toString().padStart(2, '0')}.geojson`);
-    kikenFiles.forEach(file => {
-      fetch(`kiken/${file}`).then(res => res.ok ? res.json() : null).then(data => {
-        if (data) {
-          const layer = L.geoJSON(data, {
-            style: {
-              color: "#FF6600",
-              weight: 1,
-              fillOpacity: 0.3
-            }
-          });
-          kikenLayer.addLayer(layer);
-        }
-      });
-    });
-
-    const kinkyuFiles = [...Array(47).keys()].map(i => `N10-20_${(i+1).toString().padStart(2, '0')}.geojson`);
-    kinkyuFiles.forEach(file => {
-      fetch(`kinkyu/${file}`).then(res => res.ok ? res.json() : null).then(data => {
-        if (data) {
-          const layer = L.geoJSON(data, {
-            style: {
-              color: "#ff1493",
-              weight: 2
-            }
-          });
-          kinkyuLayer.addLayer(layer);
-        }
-      });
-    });
 
     function clearSearch() {
       document.getElementById('searchBox').value = '';
@@ -173,6 +69,16 @@
     function renderMarkers(features) {
       if (markerLayer) map.removeLayer(markerLayer);
       markerLayer = L.geoJSON({type: "FeatureCollection", features: features}, {
+        pointToLayer: function(feature, latlng) {
+          const color = feature.properties["ピン色"] === "red" ? "red" : "blue";
+          const icon = L.icon({
+            iconUrl: color === "red" ? "pin-red.png" : "pin-blue.png",
+            iconSize: [32, 32],
+            iconAnchor: [16, 32],
+            popupAnchor: [0, -32]
+          });
+          return L.marker(latlng, { icon: icon });
+        },
         onEachFeature: function (feature, layer) {
           const props = feature.properties;
           const lat = feature.geometry.coordinates[1];
@@ -203,7 +109,18 @@
         if (!grouped[pref]) grouped[pref] = new Set();
         grouped[pref].add(city);
       });
-      Object.keys(grouped).sort().forEach(pref => {
+      const prefOrder = [
+        "北海道", "青森県", "岩手県", "宮城県", "秋田県", "山形県", "福島県",
+        "茨城県", "栃木県", "群馬県", "埼玉県", "千葉県", "東京都", "神奈川県",
+        "新潟県", "富山県", "石川県", "福井県", "山梨県", "長野県",
+        "岐阜県", "静岡県", "愛知県", "三重県",
+        "滋賀県", "京都府", "大阪府", "兵庫県", "奈良県", "和歌山県",
+        "鳥取県", "島根県", "岡山県", "広島県", "山口県",
+        "徳島県", "香川県", "愛媛県", "高知県",
+        "福岡県", "佐賀県", "長崎県", "熊本県", "大分県", "宮崎県", "鹿児島県", "沖縄県"
+      ];
+      prefOrder.forEach(pref => {
+        if (!grouped[pref]) return;
         const prefDiv = document.createElement('div');
         const prefLabel = document.createElement('div');
         prefLabel.textContent = pref;

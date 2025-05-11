@@ -123,10 +123,13 @@ const layer = L.geoJSON(data, {
     opacity: 1,
     fillOpacity: 0.6
   }),
-onEachFeature: (feature, layer) => {
-  console.log("Feature props:", feature.properties);
-  layer.bindPopup("HELLO POPUP");
-}
+  onEachFeature: (feature, layer) => {
+    const props = feature.properties;
+    const name = props["P20_002"] || "名称不明";
+    const type = props["P20_004"] || "種別不明";
+    const popupContent = `${name}<br>(${type})`;
+    layer.bindPopup(popupContent);
+  }
 });
 
           allEvacLayer.addLayer(layer);

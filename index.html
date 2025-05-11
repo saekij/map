@@ -50,9 +50,45 @@
       "洪水・内水": L.tileLayer('https://disaportal.gsi.go.jp/data/raster/01_flood_l2_shinsuishin_data/{z}/{x}/{y}.png', { attribution: "洪水・内水" }),
       "土砂災害": L.tileLayer('https://disaportal.gsi.go.jp/data/raster/05_dosekiryukeikaikuiki/{z}/{x}/{y}.png', { opacity: 0.6, attribution: "土砂災害" }),
       "高潮": L.tileLayer('https://disaportal.gsi.go.jp/data/raster/03_hightide_l2_shinsuishin_data/{z}/{x}/{y}.png', { attribution: "高潮" }),
-      "津波": L.tileLayer('https://disaportal.gsi.go.jp/data/raster/04_tsunami_newlegend_data/{z}/{x}/{y}.png', { attribution: "津波" }),
-      "道路防災情報": L.tileLayer('https://disaportal.gsi.go.jp/data/raster/10_kansui/{z}/{x}/{y}.png', { attribution: "道路防災情報" })
+      "津波": L.tileLayer('https://disaportal.gsi.go.jp/data/raster/04_tsunami_newlegend_data/{z}/{x}/{y}.png', { attribution: "津波" })
     };
+
+    const ekijoukaLayer = L.layerGroup();
+    overlays["液状化危険区域"] = ekijoukaLayer;
+
+    fetch('ekijouka/ekijouka.geojson')
+      .then(res => res.json())
+      .then(data => {
+        ekijoukaLayer.clearLayers();
+        data.features.forEach(feature => {
+          const coords = feature.geometry.coordinates;
+          const lat = coords[1];
+          const lng = coords[0];
+          const risk = feature.properties.risk;
+          const type = feature.properties.type_jcode;
+
+          let color;
+          if (risk === 3) color = "#cc1122";
+          else if (risk === 2) color = "#cc6644";
+          else if (risk === 1) color = "#ddaaaa";
+          else color = "#cccccc";
+
+const offset = 0.001125;
+const correction = offset;
+const bounds = [[lat - correction, lng - correction], [lat + offset - correction, lng + offset - correction]];
+
+          const rectangle = L.rectangle(bounds, {
+            color: "#333",
+            weight: 1,
+            fillColor: color,
+            fillOpacity: 0.6
+          });
+
+          const popupContent = `<b>液状化危険区域</b><br>危険レベル=${risk}<br>${type}`;
+          rectangle.bindPopup(popupContent);
+          ekijoukaLayer.addLayer(rectangle);
+        });
+      });
 
     const allEvacLayer = L.layerGroup();
     overlays["避難所"] = allEvacLayer;
@@ -71,20 +107,28 @@
 
     const layerControl = L.control.layers(null, overlays).addTo(map);
 
+    // 以下、既存のgeojson系読み込み
+
     const evacFiles = [...Array(47).keys()].map(i => `evac/P20-12_${(i+1).toString().padStart(2, '0')}.geojson`);
     evacFiles.forEach(file => {
       fetch(file).then(res => res.ok ? res.json() : null).then(data => {
         if (data) {
-          const layer = L.geoJSON(data, {
-            pointToLayer: (f, latlng) => L.circleMarker(latlng, {
-              radius: 8,
-              fillColor: "blue",
-              color: "#003366",
-              weight: 1,
-              opacity: 1,
-              fillOpacity: 0.6
-            })
-          });
+
+const layer = L.geoJSON(data, {
+  pointToLayer: (f, latlng) => L.circleMarker(latlng, {
+    radius: 8,
+    fillColor: "blue",
+    color: "#003366",
+    weight: 1,
+    opacity: 1,
+    fillOpacity: 0.6
+  }),
+onEachFeature: (feature, layer) => {
+  console.log("Feature props:", feature.properties);
+  layer.bindPopup("HELLO POPUP");
+}
+});
+
           allEvacLayer.addLayer(layer);
         }
       });
